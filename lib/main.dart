@@ -1,5 +1,6 @@
-import 'package:consulta_cep/Endereco.dart';
+
 import 'package:flutter/material.dart';
+import 'package:consulta_cep/Endereco.dart';
 import 'ConsultaCep.dart';
 
 void main() {
@@ -23,7 +24,6 @@ class MyApp extends StatelessWidget {
 
 class Home extends StatefulWidget {
   const Home({super.key, required this.title});
-
   final String title;
 
   @override
@@ -31,23 +31,36 @@ class Home extends StatefulWidget {
 }
 
 class _HomePageState extends State<Home> {
-  String cep = "";
+  final TextEditingController _cepController = TextEditingController();
+
   Endereco? endereco;
   String? erro;
   bool carregando = false;
 
-  String _mascaraCep(String valor) {
-    valor = valor.replaceAll(RegExp(r'[^0-9]'), '');
+  @override
+  void dispose() {
+    _cepController.dispose();
+    super.dispose();
+  }
 
-    if (valor.length > 8) {
-      valor = valor.substring(0, 8);
+  void _aplicarMascara(String value) {
+    String numeros = value.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (numeros.length > 8) {
+      numeros = numeros.substring(0, 8);
     }
 
-    if (valor.length > 5) {
-      valor = '${valor.substring(0, 5)}-${valor.substring(5)}';
+    String texto = numeros;
+    if (numeros.length > 5) {
+      texto = '${numeros.substring(0, 5)}-${numeros.substring(5)}';
     }
 
-    return valor;
+    if (texto != _cepController.text) {
+      _cepController.value = TextEditingValue(
+        text: texto,
+        selection: TextSelection.collapsed(offset: texto.length),
+      );
+    }
   }
 
   @override
@@ -61,188 +74,106 @@ class _HomePageState extends State<Home> {
         padding: const EdgeInsets.all(8),
         child: ListView(
           children: [
-            tffCep(),
-            const SizedBox(height: 16),
-            btnConsultarCep(),
-            const SizedBox(height: 24),
-            resultadoWidget(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  TextFormField tffCep() {
-    return TextFormField(
-      initialValue: cep,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'Campo obrigatório';
-        }
-        return null;
-      },
-      onChanged: (value) {
-        final novoCep = _mascaraCep(value);
-
-        if (novoCep != value) {
-          setState(() {
-            cep = novoCep;
-          });
-          return;
-        }
-
-        setState(() {
-          cep = novoCep;
-        });
-      },
-      keyboardType: TextInputType.number,
-      decoration: const InputDecoration(
-        border: UnderlineInputBorder(),
-        label: Text("CEP:"),
-        hintText: "00000-000",
-      ),
-    );
-  }
-    ElevatedButton btnConsultarCep() {
-    return ElevatedButton(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.purple,
-      ),
-      onPressed: () async {
-        setState(() {
-          carregando = true;
-          endereco = null;
-          erro = null;
-        });
-
-        try {
-          // Remove o traço antes de enviar para a API
-          String cepConsulta = cep.replaceAll('-', '');
-
-          Endereco data = await ConsultaCep.fetchCep(cepConsulta);
-
-          setState(() {
-            endereco = data;
-            carregando = false;
-          });
-        } catch (e) {
-          setState(() {
-            erro = 'CEP não encontrado. Verifique e tente novamente.';
-            carregando = false;
-          });
-        }
-      },
-      child: const Text(
-        "Consultar",
-        style: TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.bold,
-          fontSize: 18,
-        ),
-      ),
-    );
-  }
-
-  Widget resultadoWidget() {
-    if (carregando) {
-      return const Center(
-        child: CircularProgressIndicator(),
-      );
-    }
-
-    if (erro != null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.red.shade50,
-          border: Border.all(color: Colors.red.shade300),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              Icons.error_outline,
-              color: Colors.red.shade700,
+            TextFormField(
+              controller: _cepController,
+              keyboardType: TextInputType.number,
+              onChanged: _aplicarMascara,
+              decoration: const InputDecoration(
+                border: UnderlineInputBorder(),
+                labelText: 'CEP:',
+                hintText: '00000-000',
+              ),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                erro!,
+            const SizedBox(height: 16),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.purple),
+              onPressed: () async {
+                setState(() {
+                  carregando = true;
+                  endereco = null;
+                  erro = null;
+                });
+
+                try {
+                  String cep = _cepController.text.replaceAll('-', '');
+                  if (cep.length != 8) {
+                  setState(() {
+                  erro = 'Digite um CEP válido.';
+                  carregando = false;
+                    });
+                  return;
+                  }
+                  final data = await ConsultaCep.fetchCep(cep);
+
+                  setState(() {
+                    endereco = data;
+                    carregando = false;
+                  });
+                } catch (_) {
+                  setState(() {
+                    erro = 'CEP não encontrado. Verifique e tente novamente.';
+                    carregando = false;
+                  });
+                }
+              },
+              child: const Text(
+                'Consultar',
                 style: TextStyle(
-                  color: Colors.red.shade700,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+            if (carregando)
+              const Center(child: CircularProgressIndicator())
+            else if (erro != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  border: Border.all(color: Colors.red.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(erro!),
+              )
+            else if (endereco != null)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.purple.shade50,
+                  border: Border.all(color: Colors.purple.shade200),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _linhaInfo('CEP', endereco!.cep),
+                    _linhaInfo('Logradouro', endereco!.logradouro),
+                    _linhaInfo('Bairro', endereco!.bairro),
+                    _linhaInfo('Cidade', endereco!.localidade),
+                    _linhaInfo('Estado', endereco!.uf),
+                  ],
+                ),
+              ),
           ],
         ),
-      );
-    }
-
-    if (endereco != null) {
-      final e = endereco!;
-
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.purple.shade50,
-          border: Border.all(color: Colors.purple.shade200),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.location_on,
-                  color: Colors.purple.shade700,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Endereço encontrado',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.purple.shade700,
-                  ),
-                ),
-              ],
-            ),
-            const Divider(),
-            _linhaInfo('CEP', e.cep),
-            _linhaInfo('Logradouro', e.logradouro),
-            _linhaInfo('Bairro', e.bairro),
-            _linhaInfo('Cidade', e.localidade),
-            _linhaInfo('Estado', e.uf),
-          ],
-        ),
-      );
-    }
-
-    return const SizedBox.shrink();
+      ),
+    );
   }
-    Widget _linhaInfo(String label, String? valor) {
-    if (valor == null || valor.isEmpty) {
-      return const SizedBox.shrink();
-    }
 
+  Widget _linhaInfo(String label, String valor) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 110,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            child: Text('$label:',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
-          Expanded(
-            child: Text(valor),
-          ),
+          Expanded(child: Text(valor)),
         ],
       ),
     );
